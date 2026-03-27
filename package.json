@@ -4,6 +4,10 @@
   "description": "",
   "keywords": [],
   "homepage": "https://codesandbox.io/s/zzloxr09mp",
+  "scripts": {
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
+  },
   "dependencies": {
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
