@@ -4,13 +4,21 @@
   "description": "",
   "keywords": [],
   "homepage": "https://codesandbox.io/s/zzloxr09mp",
-  "main": "index.js",
+  "scripts": {
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
+  },
   "dependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-flexbox-grid": "2.1.2",
-    "typescript": "6.0.2",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3"
+    "recharts": "3.8.1",
+    "typescript": "6.0.2"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "parcel": "^2.16.4"
   }
 }
