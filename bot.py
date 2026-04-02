@@ -30,12 +30,19 @@ def load_seen_listings():
         with open(DB_FILE, "w") as f:
             json.dump([], f)
         return []
-    with open(DB_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        print(f"Warning: {DB_FILE} is corrupted, starting with an empty list.")
+        return []
 
 def save_seen_listings(listings):
-    with open(DB_FILE, "w") as f:
+    # Write to a temp file then atomically replace to avoid corruption on power loss
+    tmp = DB_FILE + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(listings, f)
+    os.replace(tmp, DB_FILE)
 
 def extract_price(text):
     # Looks for patterns like "17.500", "17500", "17 500"
@@ -66,9 +73,11 @@ def send_email(new_listing_url, listing_text, price):
 
         try:
             server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-            server.quit()
+            try:
+                server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+                server.send_message(msg)
+            finally:
+                server.quit()
             print(f" -> Email sent to {receiver}")
         except Exception as e:
             print(f" -> Failed to email {receiver}: {e}")
@@ -77,10 +86,31 @@ def run():
     print(f"--- Starting Monitor (Max Price: {MAX_PRICE} kr) ---")
     seen_listings = load_seen_listings()
     
+    # Restart the browser every N iterations to prevent Chromium memory growth
+    BROWSER_RESTART_INTERVAL = 50
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True) # Set to False if you need to debug
-        
+        iteration = 0
+
         while True:
+            # Recover from a browser crash (e.g. killed by the OOM killer on RPi)
+            if not browser.is_connected():
+                print("Browser disconnected, relaunching...")
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+                browser = p.chromium.launch(headless=True)
+                iteration = 0
+            # Periodically restart the browser to release accumulated memory
+            elif iteration > 0 and iteration % BROWSER_RESTART_INTERVAL == 0:
+                print("Restarting browser to free memory...")
+                browser.close()
+                browser = p.chromium.launch(headless=True)
+
+            # Keep page outside try so the finally can always reference it
+            page = None
             try:
                 page = browser.new_page()
                 print(f"Checking {URL} ...")
@@ -138,13 +168,15 @@ def run():
                 if new_count > 0:
                     save_seen_listings(seen_listings)
                     print(f"Saved {new_count} new listings.")
-                
-                page.close()
 
             except Exception as e:
                 print(f"Error: {e}")
+            finally:
+                if page is not None:
+                    page.close()
 
-            print("Sleeping for 10 minutes...")
+            iteration += 1
+            print("Sleeping for 2 minutes...")
             time.sleep(120)
 
 if __name__ == "__main__":
