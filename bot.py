@@ -77,12 +77,22 @@ def run():
     print(f"--- Starting Monitor (Max Price: {MAX_PRICE} kr) ---")
     seen_listings = load_seen_listings()
     
+    # Restart the browser every N iterations to prevent Chromium memory growth
+    BROWSER_RESTART_INTERVAL = 50
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True) # Set to False if you need to debug
-        
+        iteration = 0
+
         while True:
+            # Periodically restart the browser to release accumulated memory
+            if iteration > 0 and iteration % BROWSER_RESTART_INTERVAL == 0:
+                print("Restarting browser to free memory...")
+                browser.close()
+                browser = p.chromium.launch(headless=True)
+
+            page = browser.new_page()
             try:
-                page = browser.new_page()
                 print(f"Checking {URL} ...")
                 page.goto(URL)
                 
@@ -138,13 +148,14 @@ def run():
                 if new_count > 0:
                     save_seen_listings(seen_listings)
                     print(f"Saved {new_count} new listings.")
-                
-                page.close()
 
             except Exception as e:
                 print(f"Error: {e}")
+            finally:
+                page.close()
 
-            print("Sleeping for 10 minutes...")
+            iteration += 1
+            print("Sleeping for 2 minutes...")
             time.sleep(120)
 
 if __name__ == "__main__":
